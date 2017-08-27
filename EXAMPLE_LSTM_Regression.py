@@ -42,15 +42,15 @@ class LSTMRNN(object):
         with tf.variable_scope('out_hidden'):
             self.add_output_layer()
 
-        self.compute_cost()
-        self.train_op = tf.train.AdamOptimizer(LR).minimize(self.cost)
+        self.compute_loss()
+        self.train_step = tf.train.AdamOptimizer(LR).minimize(self.loss)
 
     def add_input_layer(self,):
         l_in_x = tf.reshape(self.xs, [-1, self.input_size], name='2_2D')  # (batch*n_step, in_size)
         # Ws (in_size, cell_size)
         Ws_in = self._weight_variable([self.input_size, self.cell_size])
         # bs (cell_size, )
-        bs_in = self._bias_variable([self.cell_size,])
+        bs_in = self._bias_variable([self.cell_size])
         # l_in_y = (batch * n_steps, cell_size)
         l_in_y = tf.matmul(l_in_x, Ws_in) + bs_in
         # reshape l_in_y ==> (batch, n_steps, cell_size)
@@ -66,31 +66,20 @@ class LSTMRNN(object):
         # shape = (batch * steps, cell_size)
         l_out_x = tf.reshape(self.cell_outputs, [-1, self.cell_size], name='2_2D')
         Ws_out = self._weight_variable([self.cell_size, self.output_size])
-        bs_out = self._bias_variable([self.output_size, ])
+        bs_out = self._bias_variable([self.output_size])
         # shape = (batch * steps, output_size)
-        self.pred = tf.matmul(l_out_x, Ws_out) + bs_out
+        self.pred = tf.tanh(tf.matmul(l_out_x, Ws_out) + bs_out)
 
-    def compute_cost(self):
-        losses = tf.contrib.legacy_seq2seq.sequence_loss_by_example(
-            [tf.reshape(self.pred, [-1], name='reshape_pred')],
-            [tf.reshape(self.ys, [-1], name='reshape_target')],
-            [tf.ones([self.batch_size * self.n_steps], dtype=tf.float32)],
-            average_across_timesteps=True,
-            softmax_loss_function=self.ms_error,
-            name='losses'
-        )
-        with tf.name_scope('average_cost'):
-            self.cost = tf.div(
-                tf.reduce_sum(losses, name='losses_sum'),
-                self.batch_size,
-                name='average_cost')
-            tf.summary.scalar('cost', self.cost)
-
-    def ms_error(self, labels, logits):
-        return tf.square(tf.subtract(labels, logits))
+    def compute_loss(self):
+        losses = tf.square(tf.subtract(tf.reshape(tf.tanh(self.pred), [-1]), tf.reshape(self.ys, [-1])))
+        self.loss = tf.div(
+            tf.reduce_sum(losses, name='losses_sum'),
+            self.batch_size,
+            name='average_cost')
+        tf.summary.scalar('loss', self.loss)
 
     def _weight_variable(self, shape, name='weights'):
-        initializer = tf.random_normal_initializer(mean=0., stddev=1.,)
+        initializer = tf.random_normal_initializer(mean=0., stddev=1.)
         return tf.get_variable(shape=shape, initializer=initializer, name=name)
 
     def _bias_variable(self, shape, name='biases'):
@@ -124,8 +113,8 @@ if __name__ == '__main__':
                 model.cell_init_state: state    # use last state as the initial state for this run
             }
 
-        _, cost, state, pred = sess.run(
-            [model.train_op, model.cost, model.cell_final_state, model.pred],
+        _, loss, state, pred = sess.run(
+            [model.train_step, model.loss, model.cell_final_state, model.pred],
             feed_dict=feed_dict)
 
         # plotting
@@ -135,6 +124,6 @@ if __name__ == '__main__':
         plt.pause(0.3)
 
         if i % 20 == 0:
-            print('cost: ', round(cost, 4))
+            print('loss: ', round(loss, 4))
             result = sess.run(merged, feed_dict)
             writer.add_summary(result, i)
