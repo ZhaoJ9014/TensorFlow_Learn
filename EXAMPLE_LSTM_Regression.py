@@ -68,7 +68,9 @@ class LSTMRNN(object):
         Ws_out = self._weight_variable([self.cell_size, self.output_size])
         bs_out = self._bias_variable([self.output_size])
         # shape = (batch * steps, output_size)
-        self.pred = tf.tanh(tf.matmul(l_out_x, Ws_out) + bs_out)
+        pred = tf.tanh(tf.matmul(l_out_x, Ws_out) + bs_out)
+        self.pred = tf.reshape(pred, [-1, self.n_steps, self.output_size])
+
 
     def compute_loss(self):
         losses = tf.square(tf.subtract(tf.reshape(tf.tanh(self.pred), [-1]), tf.reshape(self.ys, [-1])))
@@ -118,7 +120,7 @@ if __name__ == '__main__':
             feed_dict=feed_dict)
 
         # plotting
-        plt.plot(xs[0, :], res[0].flatten(), 'r', xs[0, :], pred.flatten()[:TIME_STEPS], 'b--')
+        plt.plot(xs[0, :], res[0].flatten(), 'r', xs[0, :], pred[0].flatten(), 'b--')
         plt.ylim((-1.2, 1.2))
         plt.draw()
         plt.pause(0.3)
