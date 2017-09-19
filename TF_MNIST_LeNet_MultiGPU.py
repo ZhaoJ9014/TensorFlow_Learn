@@ -75,7 +75,7 @@ with tf.Session() as sess:
         for ind in range(2):
             with tf.device('/gpu: %d' % ind):
 
-                img_tr, label_tr = data_generator('/home/zhaojian/Documents/Projects/TF_MNIST/Data/train/',
+                img_tr, label_tr = data_generator(data_source_route = '/home/zhaojian/Documents/Projects/TF_MNIST/Data/train/',
                                                   file_content = file_content, img_w = 28, img_h = 28, img_c = 1, batch_size = 128, batch_index = 0)
                 sess.run(train_op, feed_dict={X_in: img_tr, Y_in: label_tr})
                 if i % 200 == 0:
