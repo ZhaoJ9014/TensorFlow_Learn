@@ -5,7 +5,7 @@ from data_file_reader import data_file_reader
 # Generate training/testing data
 # Input - data_source_route, file_content, img_w, img_h, img_c, batch_size, batch_index
 # Ouput: training data per batch, or testing data
-# Example: data_generator('/home/zhaojian/Documents/Projects/TF_MNIST/Data/train/',
+# Example: data_generator('/home/zhaojian/Documents/Projects/TF_MNIST/Data/train/', for testing data, we can just skip the batch_index item
 # file_content = file_content, img_w = 28, img_h = 28, img_c = 1, batch_size = 128, batch_index = 0)
 
 def data_generator(data_source_route, file_content, img_w, img_h, img_c, batch_size, batch_index = 0):
