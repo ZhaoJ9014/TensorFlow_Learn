@@ -1,18 +1,16 @@
 import tensorflow as tf
-from tensorflow.examples.tutorials.mnist import input_data
-
-mnist = input_data.read_data_sets('MNIST', one_hot = False)
+from data_file_reader import data_file_reader
+from data_generator import data_generator
 
 # Hyperparameters ##
-batch_size = 500
+batch_size = 128
 ## Placeholders ##
-X_in = tf.placeholder(dtype=tf.float32, shape=[batch_size, 28 * 28])
-Y_in = tf.placeholder(dtype=tf.float32, shape=[batch_size])
+X_in = tf.placeholder(dtype=tf.float32, shape=[batch_size, 28, 28, 1])
+Y_in = tf.placeholder(dtype=tf.float32, shape=[batch_size, 1])
 ## Main Network ##
-reshape0 = tf.reshape(X_in, shape=[batch_size, 28, 28, 1])
 
 conv1 = tf.layers.conv2d(
-      inputs = reshape0,
+      inputs = X_in,
       filters = 32,
       kernel_size = [5, 5],
       padding = "same",
@@ -57,33 +55,30 @@ onehot_labels = tf.reshape(tf.one_hot(indices=tf.cast(Y_in, tf.int32), depth=10)
 loss = tf.losses.softmax_cross_entropy(
       onehot_labels = onehot_labels,
       logits = logits)
-tf.summary.scalar('loss', loss)
 
 correct_prediction = tf.equal(tf.argmax(onehot_labels, 1), tf.argmax(predictions, 1))
 accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-tf.summary.scalar('acc', accuracy)
 
 optimizer = tf.train.AdamOptimizer(learning_rate = 0.0001)
 train_op = optimizer.minimize(
       loss = loss)
 
+file_content = data_file_reader(file_dir = '/home/zhaojian/Documents/Projects/TF_MNIST/List/train.txt', is_shuffle = True)
 ## Train network and save model ##
-saver = tf.train.Saver()
 with tf.Session() as sess:
-    merged = tf.summary.merge_all()
-    writer = tf.summary.FileWriter("logs", sess.graph)
+
     init = tf.global_variables_initializer()
     sess.run(init)
-    i = 0
+
     for i in range(1000):
-        for dev_ind in range(2):
-            with tf.device('/gpu: %d' % dev_ind):
-                img_tr, label_tr = mnist.train.next_batch(batch_size)
+
+        for ind in range(2):
+            with tf.device('/gpu: %d' % ind):
+
+                img_tr, label_tr = data_generator('/home/zhaojian/Documents/Projects/TF_MNIST/Data/train/',
+                                                  file_content = file_content, img_w = 28, img_h = 28, img_c = 1, batch_size = 128, batch_index = 0)
                 sess.run(train_op, feed_dict={X_in: img_tr, Y_in: label_tr})
                 if i % 200 == 0:
                     print('batch num:', i)
                     print('loss:', sess.run(loss, feed_dict={X_in: img_tr, Y_in: label_tr}))
                     print('acc:', sess.run(accuracy, feed_dict={X_in: img_tr, Y_in: label_tr}))
-                    result = sess.run(merged, feed_dict={X_in: img_tr, Y_in: label_tr})
-                    writer.add_summary(result, i)
-            save_path = saver.save(sess, 'TF_MNIST.ckpt', global_step = i)
