@@ -26,7 +26,7 @@ def data_generator(data_source_route, file_content, img_w, img_h, img_c, batch_s
     return X_batch, Y_batch
 
 # file_content = data_file_reader(file_dir = '/home/zhaojian/Documents/Projects/TF_MNIST/List/train.txt', is_shuffle = True)
-# X_batch, Y_batch = data_generator('/home/zhaojian/Documents/Projects/TF_MNIST/Data/train/',
+# X_batch, Y_batch = data_generator(data_source_route = '/home/zhaojian/Documents/Projects/TF_MNIST/Data/train/',
 #                                   file_content = file_content, img_w = 28, img_h = 28, img_c = 1, batch_size = 128, batch_index = 0)
 # print X_batch.shape
 
