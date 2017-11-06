@@ -1,107 +1,81 @@
-import tensorflow as tf
 import numpy as np
-import sklearn.preprocessing as prep
+import tensorflow as tf
 from tensorflow.examples.tutorials.mnist import input_data
+import matplotlib.pyplot as plt
 
-## Weight initialization ##
-def xavier_init(num_in, num_out, constant = 1.0):
+## Training data
+mnist = input_data.read_data_sets('./tmp/mnist/', one_hot = True)
 
-    low = -constant * np.sqrt(6.0 / (num_in + num_out))
-    high = constant * np.sqrt(6.0 / (num_in + num_out))
+## Hyperparameters
+LR = 0.01
+EPOCHES = 20
+BATCH_SIZE = 256
+DISPLAY_STEP = 1
+EXAMPLES_TO_SHOW = 10
 
-    return tf.random_uniform((num_in, num_out), minval = low, maxval = high, dtype = tf.float32)
+N_INPUT = 784
+N_HIDDEN_1 = 256
+N_HIDDEN_2 = 128
 
+## Placeholders
+X = tf.placeholder(dtype = tf.float32, shape = [None, N_INPUT])
 
-## AutoEncoder class ##
-class AdditiveGaussianNoiseAutoencoder(object):
+## Weights & Biases
+weights = {
+    'encoder_h1': tf.Variable(tf.random_normal([N_INPUT, N_HIDDEN_1])),
+    'encoder_h2': tf.Variable(tf.random_normal([N_HIDDEN_1, N_HIDDEN_2])),
+    'decoder_h1': tf.Variable(tf.random_normal([N_HIDDEN_2, N_HIDDEN_1])),
+    'decoder_h2': tf.Variable(tf.random_normal([N_HIDDEN_1, N_INPUT]))
+}
 
-    def __init__(self, num_in, num_hidden, transfer_function = tf.nn.softplus, optimizer = tf.train.AdamOptimizer()):
+biases = {
+    'encoder_h1': tf.Variable(tf.random_normal([N_HIDDEN_1])),
+    'encoder_h2': tf.Variable(tf.random_normal([N_HIDDEN_2])),
+    'decoder_h1': tf.Variable(tf.random_normal([N_HIDDEN_1])),
+    'decoder_h2': tf.Variable(tf.random_normal([N_INPUT]))
+}
 
-        self.num_in = num_in
-        self.num_hidden = num_hidden
-        self.transfer = transfer_function
-        network_weights = self._initialize_weights()
-        self.weights = network_weights
-        self.scale = tf.placeholder(dtype=tf.float32)
-        self.x = tf.placeholder(dtype = tf.float32, shape = [None, self.num_in])
-        self.hidden = self.transfer(tf.add(tf.matmul(self.x + self.scale * tf.random_normal([self.num_in]),
-                                                     self.weights['w1']), self.weights['b1']))
-        self.reconstruction = tf.add(tf.matmul(self.hidden, self.weights['w2']), self.weights['b2'])
+## Define network
+def encoder(x):
+    x = tf.nn.sigmoid(tf.nn.bias_add(tf.matmul(x, weights['encoder_h1']), biases['encoder_h1']))
+    x = tf.nn.sigmoid(tf.nn.bias_add(tf.matmul(x, weights['encoder_h2']), biases['encoder_h2']))
+    return x
 
-        self.cost = 0.5 * tf.reduce_sum(tf.pow(tf.subtract(self.reconstruction, self.x), 2.0))
-        self.optimizer = optimizer.minimize(self.cost)
+def decoder(x):
+    x = tf.nn.sigmoid(tf.nn.bias_add(tf.matmul(x, weights['decoder_h1']), biases['decoder_h1']))
+    x = tf.nn.sigmoid(tf.nn.bias_add(tf.matmul(x, weights['decoder_h2']), biases['decoder_h2']))
+    return x
 
-        init = tf.global_variables_initializer()
-        self.sess = tf.Session()
-        self.sess.run(init)
+## Construct model
+encoder_op = encoder(X)
+decoder_op = decoder(encoder_op)
 
-    def _initialize_weights(self):
+y_pred = decoder_op
+y_gt = X
 
-        all_weights = dict()
+loss = tf.reduce_mean(tf.pow(y_gt - y_pred, 2))
+train_op = tf.train.RMSPropOptimizer(LR).minimize(loss)
 
-        all_weights['w1'] = tf.Variable(xavier_init(self.num_in, self.num_hidden))
-        all_weights['b1'] = tf.Variable(tf.zeros([self.num_hidden]), dtype = tf.float32)
+init = tf.global_variables_initializer()
 
-        all_weights['w2'] = tf.Variable(tf.zeros([self.num_hidden, self.num_in], dtype = tf.float32))
-        all_weights['b2'] = tf.Variable(tf.zeros([self.num_in]), dtype=tf.float32)
-
-        return all_weights
-
-    def partial_fit(self, X):
-
-        cost, opt = self.sess.run((self.cost, self.optimizer), feed_dict = {self.x: X, self.scale: 0.01})
-
-        return cost
-
-    def calc_total_cost(self, X):
-
-        return self.sess.run(self.cost, feed_dict = {self.x: X, self.scale: 0.01})
-
-mnist = input_data.read_data_sets('MNIST_data', one_hot = True)
-
-## Pre-processor ##
-def standard_scale(X_train, X_test):
-
-    prepocessor = prep.StandardScaler().fit(X_train)
-    X_train = prepocessor.transform(X_train)
-    X_test = prepocessor.transform(X_test)
-
-    return X_train, X_test
-
-## Batch iterater ##
-def get_random_batch_from_data(data, batch_size):
-
-    start_index = np.random.randint(0, len(data) - batch_size)
-
-    return data[start_index:(start_index + batch_size)]
-
-
-X_train, X_test = standard_scale(mnist.train.images, mnist.test.images)
-
-num_samples = int(mnist.train.num_examples)
-num_epoches = 20
-batch_size = 128
-display_step = 1
-
-autoencoder = AdditiveGaussianNoiseAutoencoder(num_in=784, num_hidden=200, transfer_function=tf.nn.softplus,
-                                               optimizer=tf.train.AdamOptimizer(learning_rate=0.001))
-
-for epoch in range(num_epoches):
-
-    avg_cost = 0.
-    total_batch = int(num_samples / batch_size)
-
-    for i in range(total_batch):
-
-        batch_X = get_random_batch_from_data(X_train, batch_size)
-
-        cost = autoencoder.partial_fit(batch_X)
-
-        avg_cost += cost / num_samples * batch_size
-
-    if epoch % display_step == 0:
-
-        print('Epoch:', '%04d' % (epoch + 1),
-              'Cost:', '{:.9f}'.format(avg_cost))
-
-    print('Total cost:' + str(autoencoder.calc_total_cost(X_test)))
+with tf.Session() as sess:
+    sess.run(init)
+    BATCH_NUM = int(mnist.train.num_examples / BATCH_SIZE)
+    # Training
+    for e in range(EPOCHES):
+        for b in range(BATCH_NUM):
+            batch_x, batch_y = mnist.train.next_batch(BATCH_SIZE)
+            sess.run(train_op, feed_dict = {X: batch_x})
+            tr_loss = sess.run(loss, feed_dict={X: batch_x})
+        if e % DISPLAY_STEP == 0:
+            print("Epoch:", '%04d' % (e + 1), "loss:", "{:.9f}".format(tr_loss))
+    print("Optimization finished!")
+    # Testing
+    pred = sess.run(y_pred, feed_dict = {X: mnist.test.images[:EXAMPLES_TO_SHOW]})
+    f, a = plt.subplots(2, 10, figsize = (10, 2))
+    for i in range(EXAMPLES_TO_SHOW):
+        a[0][i].imshow(np.reshape(mnist.test.images[i], (28, 28)))
+        a[1][i].imshow(np.reshape(pred[i], (28, 28)))
+    f.show()
+    plt.show()
+    plt.waitforbuttonpress()
